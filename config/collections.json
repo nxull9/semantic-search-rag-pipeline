@@ -1,0 +1,36 @@
+{
+  "embedding_model": "BAAI/bge-small-en-v1.5",
+  "router": {
+    "route_min_score": 0.40,
+    "max_routes": 2
+  },
+  "collections": [
+    {
+      "name": "football_clubs",
+      "document": "data/sample_football_clubs.txt",
+      "summary": "data/summaries/sample_football_clubs_summary.txt",
+      "chunk_size": 300,
+      "overlap_percent": 10,
+      "min_score": 0.63,
+      "notes": "Short factual answers (founding year, stadium, nickname): small chunks give the sharpest matches."
+    },
+    {
+      "name": "solar_system",
+      "document": "data/solar_system.txt",
+      "summary": "data/summaries/solar_system_summary.txt",
+      "chunk_size": 300,
+      "overlap_percent": 10,
+      "min_score": 0.66,
+      "notes": "One numeric fact per sentence (temperatures, moons, dates): small chunks keep each fact isolated."
+    },
+    {
+      "name": "coffee",
+      "document": "data/coffee.txt",
+      "summary": "data/summaries/coffee_summary.txt",
+      "chunk_size": 800,
+      "overlap_percent": 10,
+      "min_score": 0.67,
+      "notes": "Explanations span several sentences (processing, roasting, brewing): larger chunks keep each explanation together."
+    }
+  ]
+}

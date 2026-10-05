@@ -26,3 +26,6 @@ models/
 .DS_Store
 .vscode/
 .idea/
+
+# Vector databases built at runtime
+vector_db/
