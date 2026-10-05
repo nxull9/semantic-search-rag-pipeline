@@ -1,6 +1,6 @@
 # Technical Documentation
 
-This document describes how the semantic search pipeline works internally: the data flow, the algorithms, every configurable parameter, and the design decisions behind them.
+This document describes how the single-document semantic search pipeline works internally: the data flow, the algorithms, every configurable parameter, and the design decisions behind them. The multi-document extension is described in [MULTI_DOCUMENT_ROUTING.md](MULTI_DOCUMENT_ROUTING.md).
 
 ## Contents
 1. [Architecture](#1-architecture)

@@ -8,11 +8,19 @@ A lightweight retrieval pipeline that turns any plain-text document into a searc
 
 This is the retrieval stage of a Retrieval-Augmented Generation (RAG) system: the component that decides which parts of a document an LLM should read before answering.
 
-Built as part of the **Generative AI Solutions Development** training program (Assignment 1).
+The project has two parts:
+
+| Part | What it does | Entry points |
+|---|---|---|
+| **Single-document search** | Chunk, embed and search one document | `src/semantic_search.py`, `notebooks/semantic_search_colab.ipynb` |
+| **Multi-document routing** | Keep one tuned vector database per document, pick the right document by comparing the question with document summaries, then search inside it | `src/multi_document.py`, `notebooks/multi_document_routing_colab.ipynb` |
+
+Built as part of the **Generative AI Solutions Development** training program (Assignments 1 and 2).
 
 ## Contents
 
 - [How it works](#how-it-works)
+- [Multi-document routing](#multi-document-routing)
 - [Getting started](#getting-started)
 - [Usage](#usage)
 - [Configuration](#configuration)
@@ -50,6 +58,53 @@ flowchart LR
 
 The full derivation of each step is in the [technical documentation](docs/TECHNICAL_DOCUMENTATION.md).
 
+## Multi-document routing
+
+When there are several documents on different subjects, searching all of their chunks at once mixes unrelated results and wastes computation. The routing extension handles this in two stages:
+
+```mermaid
+flowchart LR
+    Q[Question] --> R{Compare with<br/>document summaries}
+    R --> DB1[(football_clubs)]
+    R -.-> DB2[(solar_system)]
+    R -.-> DB3[(coffee)]
+    DB1 --> S[Cosine search inside<br/>the selected database]
+    S --> A[Top-3 chunks]
+```
+
+1. **Route:** embed the question and compare it with a short summary of each document. The best-matching document is selected.
+2. **Retrieve:** search only that document's vector database and return the top 3 chunks above its minimum score. If none qualify, the second-best document is tried before the answer is reported as not found.
+
+Each document has its own vector database, with settings tuned by testing it on questions it should and should not answer:
+
+| Collection | Subject | Chunk size | Overlap | `min_score` | Reason |
+|---|---|---|---|---|---|
+| `football_clubs` | Ten football clubs | 300 | 10% | 0.63 | Short facts, so small chunks match sharply |
+| `solar_system` | The Sun, planets and space missions | 300 | 10% | 0.66 | One numeric fact per sentence |
+| `coffee` | Coffee history, farming, brewing, Arabic coffee | 800 | 10% | 0.67 | Explanations span several sentences |
+
+On the evaluation set, all 24 answerable questions were routed to the correct document, and questions outside all three subjects were rejected. The main finding is that **summaries are reliable for choosing between documents, but the decision on whether an answer exists has to be made at chunk level**, where the evidence is specific. Full method and results are in [MULTI_DOCUMENT_ROUTING.md](docs/MULTI_DOCUMENT_ROUTING.md).
+
+```bash
+python src/multi_document.py --query "Which planet is the hottest?"
+```
+
+```text
+Routing (similarity to each document summary):
+  solar_system       0.6773  <- selected
+  coffee             0.4782
+  football_clubs     0.4356
+
+Answers from 'solar_system' (3 chunk(s)):
+
+1. Chunk 4 | Similarity score: 0.8166
+   ...Venus is the hottest planet, even though Mercury is closer to the Sun. Its thick atmosphere of carbon dioxide traps heat...
+```
+
+<p align="center">
+  <img src="docs/images/routing_example.png" width="90%" alt="Routing scores and chunk scores for one question">
+</p>
+
 ## Getting started
 
 ### Requirements
@@ -76,6 +131,8 @@ No local setup is needed to run the notebook version:
 3. Set `FILE_PATH` in the Settings cell and run all cells.
 
 The notebook walks through each step separately and includes a per-chunk similarity chart and a similarity matrix.
+
+For the multi-document version, upload `notebooks/multi_document_routing_colab.ipynb` together with the three documents in `data/` and the three summary files in `data/summaries/`.
 
 ## Usage
 
@@ -186,14 +243,28 @@ Evaluated on the 10-paragraph sample document. Full tables are in [EXPERIMENTS.m
 
 ```
 semantic-search-rag-pipeline/
-├── src/semantic_search.py           # Pipeline and command-line interface
-├── notebooks/semantic_search_colab.ipynb
-├── data/sample_football_clubs.txt   # Sample input (10 paragraphs)
-├── scripts/run_experiments.py       # Reproduces docs/EXPERIMENTS.md
-├── tests/test_pipeline.py           # Unit tests
+├── src/
+│   ├── semantic_search.py              # Single-document pipeline and CLI
+│   └── multi_document.py               # Vector stores, summary router and CLI
+├── notebooks/
+│   ├── semantic_search_colab.ipynb     # Single-document walkthrough
+│   └── multi_document_routing_colab.ipynb
+├── config/collections.json             # Per-collection settings and router settings
+├── data/
+│   ├── sample_football_clubs.txt       # Documents (10+ paragraphs each)
+│   ├── solar_system.txt
+│   ├── coffee.txt
+│   ├── summaries/                      # One routing summary per document
+│   └── eval_questions.json             # Questions used for tuning and evaluation
+├── scripts/
+│   ├── run_experiments.py              # Reproduces docs/EXPERIMENTS.md
+│   ├── tune_collections.py             # Tunes each collection and the router
+│   └── build_multi_document_notebook.py
+├── tests/                              # Unit tests (pytest)
 ├── docs/
-│   ├── TECHNICAL_DOCUMENTATION.md   # Architecture, algorithms, parameters
-│   ├── EXPERIMENTS.md               # Chunk size, overlap and threshold results
+│   ├── TECHNICAL_DOCUMENTATION.md      # Architecture, algorithms, parameters
+│   ├── EXPERIMENTS.md                  # Chunk size, overlap and threshold results
+│   ├── MULTI_DOCUMENT_ROUTING.md       # Routing design, tuning and results
 │   └── images/
 ├── .github/workflows/tests.yml      # Continuous integration
 ├── requirements.txt
@@ -210,12 +281,13 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-The tests cover paragraph loading, overlap validation, chunk sizes and boundaries, lossless reconstruction of the text from its chunks, cosine similarity against hand-computed values, and ranking with the confidence threshold. They use a lightweight fake embedding model, so they run in under a second without downloading anything. GitHub Actions runs them on every push and pull request.
+The tests cover paragraph loading, overlap validation, chunk sizes and boundaries, lossless reconstruction of the text from its chunks, cosine similarity against hand-computed values, ranking with the confidence threshold, and for multi-document routing: building, saving and loading vector stores, routing by summary, fallback to the next document, and the project configuration. They use a lightweight fake embedding model, so they run in under a second without downloading anything. GitHub Actions runs them on every push and pull request.
 
-To regenerate the experiment tables and charts:
+To regenerate the experiment results and re-tune the collections:
 
 ```bash
-python scripts/run_experiments.py
+python scripts/run_experiments.py      # single-document experiments
+python scripts/tune_collections.py     # per-collection settings and router threshold
 ```
 
 ## Limitations and roadmap
@@ -226,17 +298,20 @@ python scripts/run_experiments.py
 | Top-k similarity is not exhaustive, so "list all" questions can miss items | Add a cross-encoder re-ranker and hybrid keyword (BM25) search |
 | Default model is English-only | Ship a multilingual configuration with `BAAI/bge-m3` |
 | `MIN_SCORE` is calibrated for one model and dataset | Add an automatic calibration step |
-| Embeddings are kept in memory | Persist vectors in a vector store (FAISS or Chroma) for large collections |
+| Each question is answered from a single document | Merge results from several collections when a question spans subjects |
+| Vector databases are simple NumPy files | Move to FAISS or Chroma for large collections |
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the branching and commit conventions, and [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## Arabic summary
 
-مشروع ضمن دورة **تطوير حلول الذكاء الاصطناعي التوليدي** (الواجب الأول)، يمثل مرحلة الاسترجاع في أنظمة التوليد المعزز بالاسترجاع (RAG).
+مشروع ضمن دورة **تطوير حلول الذكاء الاصطناعي التوليدي** (الواجبان الأول والثاني)، يمثل مرحلة الاسترجاع في أنظمة التوليد المعزز بالاسترجاع (RAG).
 
 يقوم المشروع بتحميل ملف نصي، ثم تقسيمه إلى أجزاء ثابتة الحجم مع تداخل بنسبة ١٥٪ بين الأجزاء المتجاورة، وتحويل كل جزء إلى متجه رقمي باستخدام نموذج تضمين. عند طرح سؤال، يُحوَّل السؤال إلى متجه بالنموذج نفسه، ويُحسب تشابه جيب التمام (Cosine Similarity) بينه وبين جميع الأجزاء، ثم تُعرض أفضل ثلاثة أجزاء مع درجاتها. وإذا لم يتجاوز أي جزء الحد الأدنى للتشابه، يوضح النظام أن الإجابة غير موجودة في المستند.
 
-للتشغيل: ارفع الدفتر `notebooks/semantic_search_colab.ipynb` إلى Google Colab مع ملفك النصي ثم شغّل جميع الخلايا، أو استخدم أوامر قسم [Usage](#usage).
+كما يتضمن المشروع (الواجب الثاني) البحث في عدة مستندات بمواضيع مختلفة: كرة القدم، والمجموعة الشمسية، والقهوة. لكل مستند قاعدة بيانات متجهات خاصة به بإعدادات مضبوطة حسب محتواه، وملخص قصير. عند طرح سؤال، يُقارن أولاً بملخصات المستندات لاختيار المستند المناسب، ثم يتم البحث بالتشابه داخل قاعدة بيانات ذلك المستند فقط وعرض أفضل ثلاث نتائج.
+
+للتشغيل: ارفع الدفتر `notebooks/semantic_search_colab.ipynb` أو `notebooks/multi_document_routing_colab.ipynb` إلى Google Colab مع الملفات النصية ثم شغّل جميع الخلايا، أو استخدم أوامر قسم [Usage](#usage).
 
 ## License
 
