@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Testing / tooling
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Models and caches downloaded at runtime
+.cache/
+models/
+
+# Secrets
+.env
+*.key
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
