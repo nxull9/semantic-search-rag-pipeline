@@ -3,15 +3,22 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.0.0] - 2026-10-05
+
+Final submission for Assignment 1 of the Generative AI Solutions Development training program. The repository now contains only the submitted notebook and documentation of its results.
 
 ### Changed
-- Rewrote the README for professional use: plain-text formatting, a guide to using your own documents, design decisions and a roadmap.
-- Command-line messages use plain text instead of emoji.
+- Replaced the notebook with the final Assignment 1 submission: 800-character chunks, 15% overlap, top 3 results and `MIN_SCORE = 0.20`.
+- Rewrote the README and technical documentation to describe only the submitted notebook and the results it produces on the sample document.
+
+### Removed
+- The Python package and command-line interface (`src/`).
+- Unit tests and the GitHub Actions workflow.
+- The experiment script, the experiment report and its charts.
 
 ## [1.0.0] - 2026-10-05
 
-First release, submitted for Assignment 1 of the Generative AI Solutions Development training program.
+Initial version of the pipeline.
 
 ### Added
 - Text loading with paragraph detection and a 10-paragraph check.
