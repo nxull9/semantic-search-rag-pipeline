@@ -135,9 +135,9 @@ def format_results(question: str, results: list[SearchResult], min_score: float)
     """Readable Question / Answers block."""
     lines = ["=" * 80, f"Question: {question}", "=" * 80]
     if not results:
-        lines.append(f"❌ This is not in the document you provided (no chunk scored ≥ {min_score}).")
+        lines.append(f"Not found: this is not in the document you provided (no chunk scored >= {min_score}).")
         return "\n".join(lines)
-    lines.append(f"Answers ({len(results)} chunk(s) with similarity ≥ {min_score}):\n")
+    lines.append(f"Answers ({len(results)} chunk(s) with similarity >= {min_score}):\n")
     for r in results:
         lines += [f"{r.rank}. Chunk {r.chunk_id} | Similarity score: {r.score:.4f}", f"   {r.text}\n"]
     return "\n".join(lines)
@@ -163,7 +163,7 @@ def main(argv: list[str] | None = None) -> None:
 
     text, paragraphs = load_text(args.file)
     if len(paragraphs) < MIN_PARAGRAPHS:
-        print(f"⚠️  {args.file} has {len(paragraphs)} paragraphs; at least {MIN_PARAGRAPHS} are expected.")
+        print(f"Warning: {args.file} has {len(paragraphs)} paragraphs; at least {MIN_PARAGRAPHS} are expected.")
 
     from sentence_transformers import SentenceTransformer
     model = SentenceTransformer(args.model)
