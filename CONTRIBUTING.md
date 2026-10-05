@@ -10,7 +10,7 @@ Thanks for your interest in improving this project! Issues, forks and pull reque
    - `fix/<short-description>` for bug fixes
    - `docs/<short-description>` for documentation
 3. Make small, focused commits (see the conventions below).
-4. Run the tests: `pytest`.
+4. Run the notebook from top to bottom in Google Colab to check it still works.
 5. Open a **pull request** against `main` that describes what changed and why.
 
 ## Commit messages
@@ -26,9 +26,7 @@ This project follows [Conventional Commits](https://www.conventionalcommits.org/
 | `feat` | New functionality |
 | `fix` | Bug fixes |
 | `docs` | Documentation only |
-| `test` | Adding or updating tests |
 | `refactor` | Code changes that don't change behaviour |
-| `ci` | Continuous integration configuration |
 | `chore` | Maintenance (dependencies, project setup) |
 
 Examples:
@@ -53,8 +51,4 @@ Open an issue with:
 
 ## Development setup
 
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements-dev.txt
-pytest
-```
+The project is a Google Colab notebook. Upload `notebooks/semantic_search_colab.ipynb` and a text file to Colab and run all cells; the notebook installs its own dependencies (listed in `requirements.txt`).

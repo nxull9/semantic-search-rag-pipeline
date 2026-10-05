@@ -1,12 +1,12 @@
 # Semantic Search Pipeline for RAG
 
-[![tests](https://github.com/nxull9/semantic-search-rag-pipeline/actions/workflows/tests.yml/badge.svg)](https://github.com/nxull9/semantic-search-rag-pipeline/actions/workflows/tests.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![Platform](https://img.shields.io/badge/platform-Google%20Colab-orange)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
-A lightweight retrieval pipeline that turns any plain-text document into a searchable knowledge base. The text is split into overlapping fixed-size chunks, each chunk is embedded with a sentence-embedding model, and questions are answered by ranking chunks with cosine similarity. When nothing in the document is relevant enough, the pipeline says so instead of returning unrelated text.
+A notebook that turns a plain-text document into a searchable knowledge base. The text is split into fixed-size chunks with a sliding-window overlap, each chunk is converted into a dense vector with a sentence-embedding model, and a user's question is answered by ranking the chunks with cosine similarity and returning the top 3.
 
-This is the retrieval stage of a Retrieval-Augmented Generation (RAG) system: the component that decides which parts of a document an LLM should read before answering.
+This is the retrieval stage of a Retrieval-Augmented Generation (RAG) system: the component that finds the parts of a document an LLM should read before answering.
 
 Built as part of the **Generative AI Solutions Development** training program (Assignment 1).
 
@@ -14,14 +14,10 @@ Built as part of the **Generative AI Solutions Development** training program (A
 
 - [How it works](#how-it-works)
 - [Getting started](#getting-started)
-- [Usage](#usage)
 - [Configuration](#configuration)
-- [Using your own documents](#using-your-own-documents)
 - [Results](#results)
-- [Design decisions](#design-decisions)
 - [Project structure](#project-structure)
-- [Testing](#testing)
-- [Limitations and roadmap](#limitations-and-roadmap)
+- [Limitations](#limitations)
 - [Arabic summary](#arabic-summary)
 - [License](#license)
 
@@ -30,213 +26,139 @@ Built as part of the **Generative AI Solutions Development** training program (A
 ```mermaid
 flowchart LR
     A[Text file] --> B[Load and clean]
-    B --> C[Fixed-size chunks<br/>with 15% overlap]
+    B --> C[Fixed-size chunks<br/>800 chars, 15% overlap]
     C --> D[Embedding model]
     D --> E[(Chunk vectors)]
     Q[Question] --> D2[Same embedding model]
     D2 --> F[Query vector]
     E --> G[Cosine similarity]
     F --> G
-    G --> H[Rank and filter<br/>by MIN_SCORE]
+    G --> H[Rank]
     H --> I[Top-3 chunks<br/>with scores]
 ```
 
-1. **Load** a `.txt` file and normalise whitespace. The file should contain at least 10 paragraphs.
-2. **Chunk** the text with a sliding window. With the defaults, each chunk is 800 characters and the window moves 680 characters at a time, so neighbouring chunks share 120 characters (15%). The overlap keeps sentences that fall on a boundary intact in at least one chunk.
-3. **Embed** every chunk into a 384-dimensional vector with `BAAI/bge-small-en-v1.5`.
-4. **Embed the question** with the same model, so questions and chunks live in the same vector space.
-5. **Score** every chunk with cosine similarity: `(A · B) / (‖A‖ × ‖B‖)`.
-6. **Rank** the chunks and return the top 3 that score at least `MIN_SCORE` (default 0.6). If none qualify, the question is reported as not covered by the document.
+| Step | Notebook cell | What happens |
+|---|---|---|
+| 1. Load | 3 | Read the `.txt` file, split it into paragraphs, check there are at least 10, and join them into one clean text |
+| 2. Chunk | 4, 5 | Slide an 800-character window over the text, moving 680 characters each time, so neighbouring chunks share 120 characters (15%). Cell 5 prints the shared text as proof |
+| 3. Embed | 6 | Convert every chunk into a 384-dimensional vector with `BAAI/bge-small-en-v1.5` |
+| 4. Query | 8 | Ask the user for a question in plain text |
+| 5. Embed query | 8 | Convert the question with the same model |
+| 6. Compare | 7, 8 | Cosine similarity between the question and every chunk: `(A · B) / (‖A‖ × ‖B‖)` |
+| 7. Rank | 8 | Sort the chunks by score and print the top 3 as Question and Answers |
 
-The full derivation of each step is in the [technical documentation](docs/TECHNICAL_DOCUMENTATION.md).
+A full description of every cell is in the [technical documentation](docs/TECHNICAL_DOCUMENTATION.md).
 
 ## Getting started
 
-### Requirements
+The notebook is written for Google Colab and needs no local installation.
 
-- Python 3.10 or newer
-- About 150 MB of disk space for the embedding model, which downloads automatically on first run
+1. Open [Google Colab](https://colab.research.google.com/) and upload [`notebooks/semantic_search_colab.ipynb`](notebooks/semantic_search_colab.ipynb) (File > Upload notebook).
+2. Upload your text file to the Files panel. It should be UTF-8 with at least 10 paragraphs separated by blank lines. A sample is provided in [`data/sample_football_clubs.txt`](data/sample_football_clubs.txt).
+3. Set `FILE_PATH` in the first cell to your file's name. If the file isn't found, the notebook shows an upload button and uses the uploaded file instead.
+4. Run all cells (Runtime > Run all) and type your question when prompted.
 
-### Installation
-
-```bash
-git clone https://github.com/nxull9/semantic-search-rag-pipeline.git
-cd semantic-search-rag-pipeline
-python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-### Google Colab
-
-No local setup is needed to run the notebook version:
-
-1. Open [Google Colab](https://colab.research.google.com/) and upload `notebooks/semantic_search_colab.ipynb` (File > Upload notebook).
-2. Upload your text file, or `data/sample_football_clubs.txt`, to the Files panel.
-3. Set `FILE_PATH` in the Settings cell and run all cells.
-
-The notebook walks through each step separately and includes a per-chunk similarity chart and a similarity matrix.
-
-## Usage
-
-### Command line
-
-Ask a single question:
-
-```bash
-python src/semantic_search.py --file data/sample_football_clubs.txt --query "How many Saudi clubs are mentioned?"
-```
-
-```text
-Loaded 10 paragraphs -> 8 chunks (800 characters, overlap 120 = 15%), model BAAI/bge-small-en-v1.5
-
-================================================================================
-Question: How many Saudi clubs are mentioned?
-================================================================================
-Answers (3 chunk(s) with similarity >= 0.6):
-
-1. Chunk 0 | Similarity score: 0.6993
-   Al Hilal is a professional football club based in the capital Riyadh, Saudi Arabia...
-
-2. Chunk 1 | Similarity score: 0.6737
-   ...Al Nassr became famous around the world in January 2023... Al Ittihad is a football club from the coastal city of Jeddah...
-
-3. Chunk 4 | Similarity score: 0.6221
-   ...
-```
-
-A question the document does not cover:
-
-```bash
-python src/semantic_search.py --file data/sample_football_clubs.txt --query "What is the capital of France?"
-```
-
-```text
-Question: What is the capital of France?
-Not found: this is not in the document you provided (no chunk scored >= 0.6).
-```
-
-Leave out `--query` to start an interactive session, then press Enter on an empty line to exit.
-
-### Python API
-
-The pipeline is a small set of functions you can import into your own project:
-
-```python
-from semantic_search import load_text, chunk_text, SemanticSearch
-
-text, paragraphs = load_text("data/sample_football_clubs.txt")
-chunks = chunk_text(text, chunk_size=800, overlap_percent=15)
-
-engine = SemanticSearch(chunks)            # embeds all chunks once
-results = engine.search("Which club signed Karim Benzema?", top_k=3, min_score=0.6)
-
-for r in results:
-    print(f"{r.rank}. chunk {r.chunk_id}  score={r.score:.4f}  {r.text[:80]}...")
-```
-
-`SemanticSearch` accepts any model object with an `encode()` method, so you can plug in another embedding backend without changing the search logic.
+The first run downloads the embedding model (about 130 MB).
 
 ## Configuration
 
-| Parameter | CLI flag | Default | What it controls |
-|---|---|---|---|
-| `CHUNK_SIZE` | `--chunk-size` | `800` | Length of each chunk, in characters or tokens |
-| `OVERLAP_PERCENT` | `--overlap` | `15` | Share of each chunk repeated in the next one (10 to 20) |
-| `CHUNK_UNIT` | `--unit` | `characters` | Measure chunks in `characters` or model `tokens` |
-| `EMBEDDING_MODEL` | `--model` | `BAAI/bge-small-en-v1.5` | Any Sentence-Transformers model |
-| `TOP_K` | `--top-k` | `3` | Maximum number of chunks returned |
-| `MIN_SCORE` | `--min-score` | `0.6` | Minimum cosine similarity for a chunk to be returned |
+All settings are in the first cell, except `MIN_SCORE`, which is defined with the search function in the last cell.
 
-In the notebook, all of these live in the Settings cell.
+| Setting | Value | Description |
+|---|---|---|
+| `FILE_PATH` | `"my_text.txt"` | Name of the text file in the Colab Files panel |
+| `CHUNK_UNIT` | `"characters"` | Measure chunks in `"characters"` or model `"tokens"` |
+| `CHUNK_SIZE` | `800` | Length of each chunk |
+| `OVERLAP_PERCENT` | `15` | Share of each chunk repeated at the start of the next one. Must be between 10 and 20 |
+| `EMBEDDING_MODEL` | `"BAAI/bge-small-en-v1.5"` | Sentence-Transformers model used for both chunks and questions |
+| `TOP_K` | `3` | Number of chunks returned |
+| `MIN_SCORE` | `0.20` | Chunks scoring below this are not returned. If none qualify, the notebook reports that the answer is not in the document |
 
-## Using your own documents
-
-1. **Prepare the text.** Save it as UTF-8 `.txt`, with paragraphs separated by blank lines.
-2. **Pick a chunk size for the questions you expect.**
-   - Specific lookups ("Who founded X?"): 200 to 500 characters give sharper matches.
-   - Broad questions ("List all X", "How many Y?"): 800 to 1000 characters, or a higher `TOP_K`, so related facts land in fewer chunks.
-3. **Calibrate `MIN_SCORE`.** Ask a few questions the document answers and a few it doesn't, then look at the scores. Set the threshold between the two groups. `scripts/run_experiments.py` shows how this was done for the sample data.
-4. **Switch models for other languages.** The default model is English-only. For Arabic or mixed-language text, use a multilingual model such as `BAAI/bge-m3` (`--model BAAI/bge-m3`) and re-calibrate `MIN_SCORE`, because every model produces scores on a different scale.
+After changing a setting, re-run the first cell and then the cells that follow it.
 
 ## Results
 
-Evaluated on the 10-paragraph sample document. Full tables are in [EXPERIMENTS.md](docs/EXPERIMENTS.md).
+Results from running the notebook on the sample document ([`data/sample_football_clubs.txt`](data/sample_football_clubs.txt)).
 
-| Finding | Evidence |
-|---|---|
-| Chunk size trades precision for coverage | For a broad question, 500-character chunks found 2 of 3 relevant entities in the top 3; 800-character chunks found all 3 |
-| Smaller chunks match specific questions more strongly | Average best score 0.79 at 200 characters vs 0.67 at 800 |
-| A 0.6 threshold rejects off-topic questions | Unrelated questions score 0.36 to 0.53; the hardest cases are same-topic questions the text doesn't answer |
+**Loading and chunking**
 
-<p align="center">
-  <img src="docs/images/similarity_bar_chart.png" width="48%" alt="Similarity of every chunk to a question">
-  <img src="docs/images/threshold_calibration.png" width="48%" alt="Threshold calibration across chunk sizes">
-</p>
+```text
+Paragraphs: 10 | Characters: 5,114 | Words: 900
+Chunk size: 800 characters | Overlap: 120 characters (15%) | Step: 680
+Number of chunks: 8
+Vectors: 8 chunks x 384 numbers each
+```
 
-## Design decisions
+Chunks 0 to 6 are 800 characters each and the last chunk holds the remaining 354. The overlap check confirms that the last 120 characters of chunk 0 are repeated at the start of chunk 1.
 
-- **Fixed-size windows with overlap.** Simple, predictable and model-agnostic. The 15% overlap sits in the middle of the 10 to 20% range and protects facts that fall on chunk boundaries for a small storage cost.
-- **800-character default chunks.** About 200 tokens, well under the model's 512-token limit, and large enough to keep related facts together for broad questions.
-- **`bge-small-en-v1.5`.** A strong retrieval model at 33M parameters that runs quickly on CPU, which suits free Colab and laptops.
-- **Explicit cosine similarity.** Implemented directly in NumPy rather than through a library call, so the scoring is transparent and easy to verify.
-- **Confidence threshold.** Nearest-neighbour search always returns something. A calibrated minimum score turns "the closest chunk" into "a relevant chunk or nothing".
+**Search**
+
+| Question | Rank | Chunk | Score | Relevant content in the chunk |
+|---|---|---|---|---|
+| how many saudi clubs do we have | 1 | 0 | 0.7366 | Al Hilal and Al Nassr |
+| | 2 | 1 | 0.7234 | Al Nassr and Al Ittihad |
+| | 3 | 4 | 0.6881 | Manchester United and Liverpool (no Saudi club) |
+| Which club signed Karim Benzema? | 1 | 1 | 0.6331 | "Al Ittihad signed the French striker Karim Benzema" |
+| | 2 | 5 | 0.6231 | Liverpool, Bayern Munich and Juventus |
+| | 3 | 0 | 0.6191 | Al Hilal and Al Nassr |
+| What is the capital of France? | 1 | 3 | 0.5300 | FC Barcelona and Manchester United (not relevant) |
+| | 2 | 2 | 0.5193 | Al Ittihad, Real Madrid and FC Barcelona (not relevant) |
+| | 3 | 5 | 0.5057 | Liverpool, Bayern Munich and Juventus (not relevant) |
+
+Example output:
+
+```text
+================================================================================
+Question: how many saudi clubs do we have
+================================================================================
+Answers (3 chunk(s) with similarity ≥ 0.2):
+
+1. Chunk 0 | Similarity score: 0.7366
+   Al Hilal is a professional football club based in the capital Riyadh, Saudi Arabia...
+
+2. Chunk 1 | Similarity score: 0.7234
+   ...Al Nassr became famous around the world in January 2023 when Cristiano Ronaldo joined the club...
+   Al Ittihad is a football club from the coastal city of Jeddah and was founded in 1927...
+```
+
+**Observations**
+
+- The two questions answered by the document rank the correct chunks first. All three Saudi clubs (Al Hilal, Al Nassr, Al Ittihad) appear in the top two chunks, because 800-character chunks keep neighbouring paragraphs together.
+- Relevant chunks score clearly higher (0.63 to 0.74) than chunks returned for an unrelated question (0.51 to 0.53).
+- With `MIN_SCORE = 0.20`, every question returns three chunks, including questions the document does not answer, because even unrelated text scores above 0.20 with this model. Raising `MIN_SCORE` to around 0.6 would reject the unrelated question while keeping the relevant answers above.
 
 ## Project structure
 
 ```
 semantic-search-rag-pipeline/
-├── src/semantic_search.py           # Pipeline and command-line interface
-├── notebooks/semantic_search_colab.ipynb
-├── data/sample_football_clubs.txt   # Sample input (10 paragraphs)
-├── scripts/run_experiments.py       # Reproduces docs/EXPERIMENTS.md
-├── tests/test_pipeline.py           # Unit tests
+├── notebooks/
+│   └── semantic_search_colab.ipynb    # The pipeline (Assignment 1 submission)
+├── data/
+│   └── sample_football_clubs.txt      # Sample input: 10 paragraphs
 ├── docs/
-│   ├── TECHNICAL_DOCUMENTATION.md   # Architecture, algorithms, parameters
-│   ├── EXPERIMENTS.md               # Chunk size, overlap and threshold results
-│   └── images/
-├── .github/workflows/tests.yml      # Continuous integration
-├── requirements.txt
-├── requirements-dev.txt
+│   └── TECHNICAL_DOCUMENTATION.md     # Cell-by-cell description, algorithms, settings
+├── requirements.txt                   # Dependencies (installed by the notebook in Colab)
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
 └── LICENSE
 ```
 
-## Testing
+## Limitations
 
-```bash
-pip install -r requirements-dev.txt
-pytest
-```
-
-The tests cover paragraph loading, overlap validation, chunk sizes and boundaries, lossless reconstruction of the text from its chunks, cosine similarity against hand-computed values, and ranking with the confidence threshold. They use a lightweight fake embedding model, so they run in under a second without downloading anything. GitHub Actions runs them on every push and pull request.
-
-To regenerate the experiment tables and charts:
-
-```bash
-python scripts/run_experiments.py
-```
-
-## Limitations and roadmap
-
-| Limitation | Planned improvement |
-|---|---|
-| Returns passages, not a written answer | Pass the top chunks to an LLM to generate the answer (the generation stage of RAG) |
-| Top-k similarity is not exhaustive, so "list all" questions can miss items | Add a cross-encoder re-ranker and hybrid keyword (BM25) search |
-| Default model is English-only | Ship a multilingual configuration with `BAAI/bge-m3` |
-| `MIN_SCORE` is calibrated for one model and dataset | Add an automatic calibration step |
-| Embeddings are kept in memory | Persist vectors in a vector store (FAISS or Chroma) for large collections |
-
-Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the branching and commit conventions, and [CHANGELOG.md](CHANGELOG.md) for release history.
+- **Retrieval only.** The notebook returns passages, not a written answer. Passing the top chunks to an LLM is the generation stage of RAG.
+- **Top-k similarity is not exhaustive.** "List all" or "how many" questions can miss items when the answer is spread over more than three chunks.
+- **The threshold does not filter unrelated questions** at its current value of 0.20 (see [Results](#results)).
+- **Character windows cut words.** Chunks can start or end in the middle of a word; the overlap keeps boundary text intact in at least one chunk.
+- **English model.** `bge-small-en-v1.5` is trained on English; Arabic text needs a multilingual model such as `BAAI/bge-m3`.
+- **Colab-specific.** The file upload uses `google.colab`, so running outside Colab requires removing that import and setting `FILE_PATH` to a local file.
 
 ## Arabic summary
 
 مشروع ضمن دورة **تطوير حلول الذكاء الاصطناعي التوليدي** (الواجب الأول)، يمثل مرحلة الاسترجاع في أنظمة التوليد المعزز بالاسترجاع (RAG).
 
-يقوم المشروع بتحميل ملف نصي، ثم تقسيمه إلى أجزاء ثابتة الحجم مع تداخل بنسبة ١٥٪ بين الأجزاء المتجاورة، وتحويل كل جزء إلى متجه رقمي باستخدام نموذج تضمين. عند طرح سؤال، يُحوَّل السؤال إلى متجه بالنموذج نفسه، ويُحسب تشابه جيب التمام (Cosine Similarity) بينه وبين جميع الأجزاء، ثم تُعرض أفضل ثلاثة أجزاء مع درجاتها. وإذا لم يتجاوز أي جزء الحد الأدنى للتشابه، يوضح النظام أن الإجابة غير موجودة في المستند.
+يقوم الدفتر بتحميل ملف نصي يحتوي على ١٠ فقرات على الأقل، ثم تقسيمه إلى أجزاء ثابتة الحجم (٨٠٠ حرف) مع تداخل بنسبة ١٥٪ بين الأجزاء المتجاورة، وتحويل كل جزء إلى متجه رقمي باستخدام نموذج التضمين `bge-small-en-v1.5`. عند طرح سؤال، يُحوَّل السؤال إلى متجه بالنموذج نفسه، ويُحسب تشابه جيب التمام (Cosine Similarity) بينه وبين جميع الأجزاء، ثم تُعرض أفضل ثلاثة أجزاء مع درجات التشابه.
 
-للتشغيل: ارفع الدفتر `notebooks/semantic_search_colab.ipynb` إلى Google Colab مع ملفك النصي ثم شغّل جميع الخلايا، أو استخدم أوامر قسم [Usage](#usage).
+للتشغيل: ارفع الدفتر `notebooks/semantic_search_colab.ipynb` إلى Google Colab مع ملفك النصي، ثم شغّل جميع الخلايا واكتب سؤالك.
 
 ## License
 
