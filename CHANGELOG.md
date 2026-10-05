@@ -3,11 +3,25 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.0] - 2026-10-05
+
+Multi-document routing, submitted for Assignment 2 of the Generative AI Solutions Development training program.
+
+### Added
+- Two new documents on different subjects: the Solar System and coffee (12 paragraphs each).
+- A routing summary for each document in `data/summaries/`.
+- `src/multi_document.py`: one vector store per document with its own chunk size, overlap and minimum score; stores can be saved to and loaded from disk.
+- Summary-based router: questions are compared with the document summaries to pick the document before searching its chunks, with a fallback to the second-best document.
+- `config/collections.json` with the tuned settings for each collection and the router.
+- `scripts/tune_collections.py` and `data/eval_questions.json` to tune and evaluate each collection and the router.
+- Colab notebook `notebooks/multi_document_routing_colab.ipynb` with routing and chunk-score charts and a routing check.
+- Tests for vector stores, routing, fallback and the project configuration.
+- `docs/MULTI_DOCUMENT_ROUTING.md` describing the design, tuning method and results.
 
 ### Changed
 - Rewrote the README for professional use: plain-text formatting, a guide to using your own documents, design decisions and a roadmap.
 - Command-line messages use plain text instead of emoji.
+- Shared the fake embedding model used by the tests in `tests/fakes.py`.
 
 ## [1.0.0] - 2026-10-05
 
