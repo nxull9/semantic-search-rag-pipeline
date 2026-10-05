@@ -1,190 +1,186 @@
 # Technical Documentation
 
-This document describes how the semantic search pipeline works internally: the data flow, the algorithms, every configurable parameter, and the design decisions behind them.
+This document describes how the notebook [`notebooks/semantic_search_colab.ipynb`](../notebooks/semantic_search_colab.ipynb) works: what each cell does, the algorithms behind it, and the settings that control it.
 
 ## Contents
 1. [Architecture](#1-architecture)
-2. [Step 1: Loading the text](#2-step-1-loading-the-text)
-3. [Step 2: Fixed-size chunking with overlap](#3-step-2-fixed-size-chunking-with-overlap)
-4. [Step 3: Embedding](#4-step-3-embedding)
-5. [Steps 4–6: Query embedding and cosine similarity](#5-steps-46-query-embedding-and-cosine-similarity)
-6. [Step 7: Ranking and the confidence threshold](#6-step-7-ranking-and-the-confidence-threshold)
-7. [Parameters](#7-parameters)
-8. [Code reference](#8-code-reference)
-9. [Testing](#9-testing)
-10. [Limitations](#10-limitations)
+2. [Cell-by-cell description](#2-cell-by-cell-description)
+3. [Chunking with overlap](#3-chunking-with-overlap)
+4. [Embeddings](#4-embeddings)
+5. [Cosine similarity and ranking](#5-cosine-similarity-and-ranking)
+6. [Settings](#6-settings)
+7. [Results on the sample document](#7-results-on-the-sample-document)
+8. [Limitations](#8-limitations)
 
 ---
 
 ## 1. Architecture
 
-The project is a **bi-encoder retrieval** pipeline, the first stage of a Retrieval-Augmented Generation (RAG) system. Documents and queries are embedded **independently** by the same model, and relevance is measured with cosine similarity between their vectors.
+The notebook implements **bi-encoder retrieval**, the first stage of a Retrieval-Augmented Generation (RAG) system. Chunks and questions are embedded independently by the same model, and relevance is measured with cosine similarity between their vectors.
 
 ```mermaid
 flowchart LR
-    A[".txt file<br/>(≥ 10 paragraphs)"] --> B["Load & clean<br/>load_text()"]
-    B --> C["Fixed-size chunks<br/>+ 10–20% overlap<br/>chunk_text()"]
-    C --> D["Embedding model<br/>bge-small-en-v1.5"]
-    D --> E[("Chunk vectors<br/>N × 384")]
-    Q["User question"] --> D2["Same embedding model"]
-    D2 --> F["Query vector<br/>1 × 384"]
-    E --> G["Cosine similarity<br/>cosine_similarity()"]
+    A[".txt file<br/>(at least 10 paragraphs)"] --> B["Load and clean<br/>(cell 3)"]
+    B --> C["Fixed-size chunks + overlap<br/>(cells 4-5)"]
+    C --> D["Embedding model<br/>(cell 6)"]
+    D --> E[("Chunk vectors<br/>8 x 384")]
+    Q["Question<br/>(cell 8)"] --> D2["Same embedding model"]
+    D2 --> F["Query vector<br/>1 x 384"]
+    E --> G["Cosine similarity<br/>(cells 7-8)"]
     F --> G
-    G --> H["Rank + MIN_SCORE filter<br/>SemanticSearch.search()"]
-    H --> I["Top-3 chunks with scores<br/>or 'not in the document'"]
+    G --> H["Rank and keep scores<br/>at least MIN_SCORE"]
+    H --> I["Top-3 chunks with scores"]
 ```
 
-Chunks are embedded **once** when the index is built. Each query costs only one embedding call plus one matrix–vector product, so searching stays fast as the number of questions grows.
+Chunks are embedded once. Each question then costs one embedding call and one matrix-vector product.
 
-## 2. Step 1: Loading the text
+## 2. Cell-by-cell description
 
-`load_text(path)` reads the file as UTF-8 and:
-
-1. Splits paragraphs on **blank lines** (`\n\s*\n`). If the file has no blank lines, every non-empty line becomes a paragraph.
-2. Normalises whitespace inside each paragraph (tabs, double spaces and line breaks become single spaces).
-3. Joins all paragraphs with single spaces into one continuous `text`, which is what gets chunked.
-
-Paragraphs are only used to validate the input (the assignment requires at least 10). The chunker works on the continuous text, so chunks may span paragraph boundaries. This is the expected behaviour of a fixed-size window.
-
-## 3. Step 2: Fixed-size chunking with overlap
-
-A window of `CHUNK_SIZE` units slides over the text. Each new window starts `step` units after the previous one:
-
-```
-overlap = round(CHUNK_SIZE × OVERLAP_PERCENT / 100)
-step    = CHUNK_SIZE − overlap
-```
-
-Example (`CHUNK_SIZE = 800`, `OVERLAP_PERCENT = 15`):
-
-```
-overlap = 120,  step = 680
-
-chunk 0: [   0 ...  800)
-chunk 1: [ 680 ... 1480)      ← shares characters 680–800 with chunk 0
-chunk 2: [1360 ... 2160)      ← shares characters 1360–1480 with chunk 1
-...
-last   : [start ... end of text)   (may be shorter than CHUNK_SIZE)
-```
-
-The loop stops as soon as a window reaches the end of the text, so the final chunk is never fully contained in the previous one.
-
-**Number of chunks** for a text of length *L*:
-
-```
-chunks = 1                                   if L ≤ CHUNK_SIZE
-chunks = ceil((L − CHUNK_SIZE) / step) + 1   otherwise
-```
-
-### Units: characters vs tokens
-
-| `CHUNK_UNIT` | How the window is measured | Notes |
+| Cell | Purpose | Main variables it creates |
 |---|---|---|
-| `characters` (default) | String positions | Simple and predictable. Cuts can land in the middle of a word. |
-| `tokens` | Positions in the model's tokenizer output | Matches how the model counts its input limit. The tokenizer's offset mapping converts token windows back into the exact original text. |
+| 1 | Settings: file name, chunk unit, chunk size, overlap percentage, embedding model, number of results | `FILE_PATH`, `CHUNK_UNIT`, `CHUNK_SIZE`, `OVERLAP_PERCENT`, `EMBEDDING_MODEL`, `TOP_K` |
+| 2 | Installs `sentence-transformers` | |
+| 3 | **Step 1, load.** Uploads the file if it is missing, splits it into paragraphs, prints statistics, checks for at least 10 paragraphs, and joins the paragraphs into one clean text | `raw_text`, `paragraphs`, `text` |
+| 4 | **Step 2, chunk.** Validates the 10-20% overlap, computes the overlap and step, cuts the text into windows, and shows a table of chunks | `overlap`, `step`, `chunks`, `chunks_df` |
+| 5 | Overlap check: prints the end of chunk 0 and the start of chunk 1 to show the shared text | |
+| 6 | **Step 3, embed.** Loads the embedding model and encodes every chunk | `model`, `chunk_vectors` |
+| 7 | **Step 6 helper.** Defines `cosine_similarity(query_vector, matrix)` | |
+| 8 | **Steps 4-7, search.** Sets `MIN_SCORE`, defines `semantic_search()`, asks for a question, embeds it with the same model, scores every chunk, ranks them and prints the top 3 | `MIN_SCORE`, `question`, `results` |
 
-For `bge-small-en-v1.5`, one token ≈ 4 English characters, so 500 tokens ≈ 2,000 characters. Chunks must stay under the model's **512-token limit**; anything longer is silently truncated by the model.
+### Cell 3: loading
 
-### Why overlap?
+```python
+paragraphs = [" ".join(p.split()) for p in re.split(r"\n\s*\n", raw_text) if p.strip()]
+if len(paragraphs) < 2:
+    paragraphs = [" ".join(p.split()) for p in raw_text.splitlines() if p.strip()]
+text = " ".join(paragraphs)
+```
 
-A fact that falls on a boundary ("…signed the French striker | Karim Benzema…") would otherwise be split across two chunks and match poorly in both. With overlap, the boundary region appears in full in at least one chunk. The cost is a few extra chunks (see [EXPERIMENTS.md](EXPERIMENTS.md#2-overlap)). The implementation enforces the assignment's 10–20% range and raises a `ValueError` outside it.
+- Paragraphs are separated by **blank lines**. If the file has none, each non-empty line is a paragraph.
+- `" ".join(p.split())` collapses tabs, line breaks and repeated spaces into single spaces.
+- The paragraphs are joined into one continuous `text`, which is what gets chunked. Paragraphs are only used to check the 10-paragraph requirement, so chunks can span paragraph boundaries.
 
-## 4. Step 3: Embedding
+### Cell 8: search
 
-Every chunk is encoded by a [Sentence-Transformers](https://www.sbert.net/) model into a dense vector.
+```python
+query_vector = model.encode(question)                       # Step 5: same embedding model
+scores = cosine_similarity(query_vector, chunk_vectors)     # Step 6: cosine similarity
+ranking = np.argsort(scores)[::-1][:top_k]                  # Step 7: rank, highest first
+confident = [i for i in ranking if scores[i] >= MIN_SCORE]  # keep only confident matches
+```
 
-| Property | `BAAI/bge-small-en-v1.5` (default) |
+The function prints the question, then each returned chunk with its rank, chunk number and similarity score. If no chunk in the top `TOP_K` reaches `MIN_SCORE`, it prints that the answer is not in the document.
+
+## 3. Chunking with overlap
+
+A window of `CHUNK_SIZE` characters slides over the text. Each new window starts `step` characters after the previous one:
+
+```
+overlap = round(CHUNK_SIZE x OVERLAP_PERCENT / 100) = round(800 x 0.15) = 120
+step    = CHUNK_SIZE - overlap                       = 800 - 120         = 680
+```
+
+```
+chunk 0: characters [   0,  800)
+chunk 1: characters [ 680, 1480)   shares 680-800 with chunk 0
+chunk 2: characters [1360, 2160)   shares 1360-1480 with chunk 1
+...
+chunk 7: characters [4760, 5114)   the remaining 354 characters
+```
+
+`sliding_windows()` stops as soon as a window reaches the end of the text, so the last chunk is never fully contained in the previous one. For a text of length *L*:
+
+```
+number of chunks = ceil((L - CHUNK_SIZE) / step) + 1 = ceil((5114 - 800) / 680) + 1 = 8
+```
+
+**Why overlap:** a sentence that falls on a boundary would otherwise be split between two chunks and match poorly in both. With 120 shared characters, boundary text appears complete in at least one chunk. The notebook enforces the required range with `assert 10 <= OVERLAP_PERCENT <= 20`.
+
+**Token mode:** with `CHUNK_UNIT = "tokens"`, the window is measured in tokens of the embedding model's tokenizer. The tokenizer's offset mapping converts each token window back to the exact original text. One token is roughly four English characters, and the model reads at most 512 tokens per chunk.
+
+## 4. Embeddings
+
+| Property | `BAAI/bge-small-en-v1.5` |
 |---|---|
-| Architecture | BERT-style transformer encoder (bi-encoder), CLS pooling |
-| Parameters | ~33M |
+| Architecture | BERT-style transformer encoder (bi-encoder) |
+| Parameters | about 33 million |
 | Vector size | 384 |
-| Max input | 512 tokens |
+| Maximum input | 512 tokens |
 | Language | English |
 
-The output is a matrix `chunk_vectors` of shape `(number_of_chunks, 384)`.
+An 800-character chunk is about 200 tokens, well within the 512-token limit, so no chunk is truncated. The same model encodes the chunks (cell 6) and the question (cell 8); vectors from different models cannot be compared.
 
-Any Sentence-Transformers model can be used by changing `EMBEDDING_MODEL` / `--model`. For Arabic or mixed-language text, use a multilingual model such as `BAAI/bge-m3`. Scores differ between models, so `MIN_SCORE` must be re-calibrated after switching.
+## 5. Cosine similarity and ranking
 
-## 5. Steps 4–6: Query embedding and cosine similarity
-
-The user's question is encoded by **the same model** into a 384-number vector. This is essential: vectors from different models live in different spaces and cannot be compared.
-
-Relevance is measured with **cosine similarity**, implemented explicitly in `cosine_similarity()`:
+Cell 7 implements cosine similarity explicitly:
 
 $$
 \text{cosine}(A, B) = \frac{A \cdot B}{\lVert A \rVert \, \lVert B \rVert}
 $$
 
 ```python
-dot_products = matrix @ query_vector                                    # A · B for every chunk
-norms = np.linalg.norm(matrix, axis=1) * np.linalg.norm(query_vector)   # ‖A‖ × ‖B‖
-scores = dot_products / norms
+dot_products = matrix @ query_vector                                   # A . B for every chunk
+norms = np.linalg.norm(matrix, axis=1) * np.linalg.norm(query_vector)  # |A| x |B|
+return dot_products / norms
 ```
 
-Cosine similarity compares the **direction** of two vectors and ignores their length, so a long chunk is not favoured just for containing more words. Scores range from −1 to 1. With this model, related texts typically score 0.6–0.85 and unrelated texts 0.35–0.6.
+Cosine similarity compares the **direction** of two vectors and ignores their length, so a longer chunk is not favoured for containing more words. Scores range from -1 to 1; higher means closer in meaning.
 
-## 6. Step 7: Ranking and the confidence threshold
+Ranking uses `np.argsort(scores)[::-1]` to order chunks from highest to lowest score, keeps the first `TOP_K`, and then removes any below `MIN_SCORE`.
 
-1. Chunks are sorted by score, highest first (`np.argsort(scores)[::-1]`).
-2. The first `TOP_K` (default 3) are kept.
-3. Any of those scoring below `MIN_SCORE` (default 0.6) are removed.
-4. If none remain, the system answers **"This is not in the document you provided."** instead of returning irrelevant chunks.
+## 6. Settings
 
-Without step 3, nearest-neighbour search *always* returns something, even for questions unrelated to the document. The threshold of 0.6 was chosen by calibration: questions answered in the text against questions that are not. With 800-character chunks it classifies 88% of the test questions correctly (see [EXPERIMENTS.md](EXPERIMENTS.md#3-confidence-threshold-calibration)).
+| Setting | Value | Effect of increasing it |
+|---|---|---|
+| `CHUNK_SIZE` | 800 | Fewer, longer chunks: more context per answer and better coverage of broad questions, but individual facts are mixed with more surrounding text |
+| `OVERLAP_PERCENT` | 15 | More text shared between neighbours, so fewer facts are split at boundaries; slightly more chunks. Must stay between 10 and 20 |
+| `CHUNK_UNIT` | `"characters"` | `"tokens"` measures chunks the way the model counts its input |
+| `TOP_K` | 3 | More chunks returned |
+| `MIN_SCORE` | 0.20 | Stricter filtering: chunks below the value are not returned |
 
-## 7. Parameters
+After changing a setting in cell 1, re-run cell 1 and every cell after it. `TOP_K` is read when cell 8 defines `semantic_search()`, so cell 8 must also be re-run.
 
-| Parameter | Notebook | CLI flag | Default | Effect of increasing it |
-|---|---|---|---|---|
-| `CHUNK_SIZE` | Settings cell | `--chunk-size` | 800 | Fewer, larger chunks. More context per answer and better for broad questions; specific facts get diluted. |
-| `OVERLAP_PERCENT` | Settings cell | `--overlap` | 15 | More shared text between neighbours, so fewer facts are split at boundaries; slightly more chunks. Must be 10–20. |
-| `CHUNK_UNIT` | Settings cell | `--unit` | `characters` | `tokens` measures size the way the model does. |
-| `EMBEDDING_MODEL` | Settings cell | `--model` | `BAAI/bge-small-en-v1.5` | Larger models are usually more accurate but slower. Changing it requires re-calibrating `MIN_SCORE`. |
-| `TOP_K` | Settings cell | `--top-k` | 3 | More chunks returned, so a broad answer is less likely to be missed, but more noise. |
-| `MIN_SCORE` | Settings cell | `--min-score` | 0.6 | Stricter: off-topic questions are rejected more reliably, but some real answers are cut. |
+## 7. Results on the sample document
 
-After changing a setting in the notebook, re-run the settings cell and every cell after the chunking step.
+Input: [`data/sample_football_clubs.txt`](../data/sample_football_clubs.txt), 10 paragraphs about football clubs.
 
-## 8. Code reference
-
-All logic lives in [`src/semantic_search.py`](../src/semantic_search.py). The Colab notebook implements the same steps cell by cell.
-
-| Function / class | Purpose |
+| Measure | Value |
 |---|---|
-| `load_text(path) -> (text, paragraphs)` | Read and clean the input file |
-| `overlap_size(chunk_size, overlap_percent) -> int` | Compute the overlap and validate the 10–20% range |
-| `sliding_windows(length, size, step) -> [(start, end)]` | Window positions over a sequence |
-| `chunk_text(text, chunk_size, overlap_percent, unit, tokenizer) -> [str]` | Fixed-size chunking by characters or tokens |
-| `cosine_similarity(query_vector, matrix) -> np.ndarray` | Cosine similarity of one vector with every row |
-| `SemanticSearch(chunks, model_name \| model)` | Embeds the chunks once and stores the vectors |
-| `SemanticSearch.scores(question)` | Similarity of a question with every chunk |
-| `SemanticSearch.search(question, top_k, min_score) -> [SearchResult]` | Ranked, threshold-filtered results |
-| `format_results(question, results, min_score) -> str` | Question / Answers text output |
-| `main(argv)` | Command-line interface |
+| Paragraphs | 10 |
+| Characters | 5,114 |
+| Words | 900 |
+| Overlap / step | 120 / 680 characters |
+| Chunks | 8 (seven of 800 characters, one of 354) |
+| Vectors | 8 x 384 |
 
-`SemanticSearch` accepts any object with an `encode()` method, which makes it testable with a lightweight fake model and no download.
+Which clubs each chunk covers:
 
-## 9. Testing
+| Chunk | Clubs mentioned |
+|---|---|
+| 0 | Al Hilal, Al Nassr |
+| 1 | Al Nassr, Al Ittihad |
+| 2 | Al Ittihad, Real Madrid, FC Barcelona |
+| 3 | FC Barcelona, Manchester United |
+| 4 | Manchester United, Liverpool |
+| 5 | Liverpool, Bayern Munich, Juventus |
+| 6 | Juventus, AC Milan |
+| 7 | AC Milan |
 
-```bash
-pip install -r requirements-dev.txt
-pytest
-```
+Search results:
 
-The [test suite](../tests/test_pipeline.py) covers:
-- paragraph splitting and the line-based fallback
-- overlap size and rejection of values outside 10–20%
-- window positions, fixed chunk sizes, shared overlap between neighbours, and lossless reconstruction of the original text from the chunks
-- cosine similarity against hand-computed values and independence from vector length
-- ranking order and the "not in the document" behaviour (using a fake embedding model)
+| Question | Top 3 chunks (score) | Outcome |
+|---|---|---|
+| how many saudi clubs do we have | 0 (0.7366), 1 (0.7234), 4 (0.6881) | All three Saudi clubs are in chunks 0 and 1 |
+| Which club signed Karim Benzema? | 1 (0.6331), 5 (0.6231), 0 (0.6191) | Chunk 1 contains "Al Ittihad signed the French striker Karim Benzema" |
+| What is the capital of France? | 3 (0.5300), 2 (0.5193), 5 (0.5057) | Not in the document; three unrelated chunks are returned |
 
-Tests run automatically on every push and pull request through [GitHub Actions](../.github/workflows/tests.yml).
+The correct chunks rank first for both questions the document answers, and they score higher (0.63 to 0.74) than anything returned for the unrelated question (0.51 to 0.53). With `MIN_SCORE = 0.20`, the unrelated question still returns results; a threshold of about 0.6 would separate the two groups in this example.
 
-## 10. Limitations
+## 8. Limitations
 
-- **Similarity is not completeness.** Top-k search returns the most *similar* chunks, not *every* relevant chunk. Questions like "how many…" or "list all…" can miss parts of the answer when it is spread across many chunks. Larger chunks or a higher `TOP_K` help.
-- **Retrieval only.** The system returns passages; it does not generate a written answer. Adding an LLM on top of these chunks is the generation step of RAG.
-- **The threshold is model- and data-specific.** 0.6 was calibrated for `bge-small-en-v1.5` on English text and must be re-checked for other models or documents.
-- **Same-topic questions are the hardest to reject.** A football question that the text doesn't answer ("Who won the 2022 World Cup?") can score close to real answers.
-- **Character windows cut words.** Chunks can start or end mid-word; the overlap compensates for this at the boundaries.
-- **English model.** The default model is English-only; use a multilingual model for Arabic text.
+- **Retrieval only:** the notebook returns passages, not a generated answer.
+- **Top-k is not exhaustive:** answers spread over more than `TOP_K` chunks can be partly missed.
+- **Threshold:** at 0.20, `MIN_SCORE` does not filter out questions the document does not answer.
+- **Character windows cut words** at chunk boundaries; the overlap compensates at the edges.
+- **English-only model:** use a multilingual model such as `BAAI/bge-m3` for Arabic text.
+- **Colab-specific upload:** cell 3 imports `google.colab`; outside Colab, remove the import and point `FILE_PATH` to a local file.
