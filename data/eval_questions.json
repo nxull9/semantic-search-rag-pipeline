@@ -1,0 +1,161 @@
+{
+  "_about": "Evaluation questions used to tune each collection and the router. 'answerable' questions list a keyword that must appear in the top chunk. 'broad' questions list several keywords that must all appear in the top-3 chunks. 'near_topic' questions belong to the document's subject but are not answered by it. 'unrelated' questions match no document.",
+  "collections": {
+    "football_clubs": {
+      "answerable": [
+        [
+          "Which club signed Karim Benzema?",
+          "Karim Benzema"
+        ],
+        [
+          "Where does Liverpool play its home matches?",
+          "Anfield"
+        ],
+        [
+          "What is Juventus called?",
+          "Old Lady"
+        ],
+        [
+          "Who managed Manchester United from 1986 to 2013?",
+          "Alex Ferguson"
+        ],
+        [
+          "When was Al Hilal founded?",
+          "1957"
+        ],
+        [
+          "What is Barcelona's motto?",
+          "Mes que un club"
+        ],
+        [
+          "Which fans sing You'll Never Walk Alone?",
+          "Never Walk Alone"
+        ],
+        [
+          "Which club shares the San Siro with Inter?",
+          "San Siro"
+        ]
+      ],
+      "broad": [
+        [
+          "How many Saudi clubs are mentioned?",
+          [
+            "Al Hilal",
+            "Al Nassr",
+            "Al Ittihad"
+          ]
+        ]
+      ],
+      "near_topic": [
+        "Who won the 2022 World Cup?",
+        "How many players are on a football team?"
+      ]
+    },
+    "solar_system": {
+      "answerable": [
+        [
+          "Which planet is the hottest?",
+          "465 degrees"
+        ],
+        [
+          "What is the largest volcano in the Solar System?",
+          "Olympus Mons"
+        ],
+        [
+          "When was Pluto reclassified as a dwarf planet?",
+          "2006"
+        ],
+        [
+          "Which planet spins on its side?",
+          "98 degrees"
+        ],
+        [
+          "How long does sunlight take to reach Earth?",
+          "8 minutes"
+        ],
+        [
+          "What is the largest moon in the Solar System?",
+          "Ganymede"
+        ],
+        [
+          "What are Saturn's rings made of?",
+          "chunks of ice"
+        ],
+        [
+          "Which spacecraft was the first to enter interstellar space?",
+          "interstellar space"
+        ]
+      ],
+      "broad": [
+        [
+          "Which planets are gas giants and which are ice giants?",
+          [
+            "Jupiter",
+            "Uranus"
+          ]
+        ]
+      ],
+      "near_topic": [
+        "How far away is the Andromeda galaxy?",
+        "What is a black hole?"
+      ]
+    },
+    "coffee": {
+      "answerable": [
+        [
+          "Where did coffee originally come from?",
+          "Ethiopia"
+        ],
+        [
+          "Which coffee species has more caffeine?",
+          "twice as much caffeine"
+        ],
+        [
+          "Which country produces the most coffee?",
+          "Brazil"
+        ],
+        [
+          "How is espresso made?",
+          "9 bars"
+        ],
+        [
+          "How much caffeine is safe per day?",
+          "400 milligrams"
+        ],
+        [
+          "What is Arabic coffee served with?",
+          "dates"
+        ],
+        [
+          "Where is Khawlani coffee grown?",
+          "Jazan"
+        ],
+        [
+          "Does dark roast coffee have more caffeine?",
+          "does not contain more caffeine"
+        ]
+      ],
+      "broad": [
+        [
+          "What are the main coffee species and where are they grown?",
+          [
+            "Arabica",
+            "Brazil"
+          ]
+        ]
+      ],
+      "near_topic": [
+        "How do you make green tea?",
+        "What is the price of coffee on the stock market today?"
+      ]
+    }
+  },
+  "unrelated": [
+    "What is the capital of France?",
+    "How do I learn Python?",
+    "Who painted the Mona Lisa?",
+    "How do vaccines work?",
+    "What is the stock price of Apple?",
+    "How do I bake bread?"
+  ]
+}
