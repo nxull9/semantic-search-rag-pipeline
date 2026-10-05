@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- Rewrote the README for professional use: plain-text formatting, a guide to using your own documents, design decisions and a roadmap.
+- Command-line messages use plain text instead of emoji.
+
 ## [1.0.0] - 2026-10-05
 
 First release, submitted for Assignment 1 of the Generative AI Solutions Development training program.
