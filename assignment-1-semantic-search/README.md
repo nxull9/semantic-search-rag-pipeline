@@ -1,4 +1,4 @@
-# Semantic Search Pipeline for RAG
+# Assignment 1: Semantic Search Pipeline for RAG
 
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-Google%20Colab-orange)
@@ -8,7 +8,7 @@ A notebook that turns a plain-text document into a searchable knowledge base. Th
 
 This is the retrieval stage of a Retrieval-Augmented Generation (RAG) system: the component that finds the parts of a document an LLM should read before answering.
 
-Built as part of the **Generative AI Solutions Development** training program (Assignment 1).
+Part of the **Generative AI Solutions Development** program at [SDAIA Academy](https://github.com/SDAIAAcademy). See the [repository overview](../README.md) for the full list of projects.
 
 ## Contents
 
@@ -16,10 +16,9 @@ Built as part of the **Generative AI Solutions Development** training program (A
 - [Getting started](#getting-started)
 - [Configuration](#configuration)
 - [Results](#results)
-- [Project structure](#project-structure)
+- [Folder structure](#folder-structure)
 - [Limitations](#limitations)
 - [Arabic summary](#arabic-summary)
-- [License](#license)
 
 ## How it works
 
@@ -127,10 +126,10 @@ Answers (3 chunk(s) with similarity ≥ 0.2):
 - Relevant chunks score clearly higher (0.63 to 0.74) than chunks returned for an unrelated question (0.51 to 0.53).
 - With `MIN_SCORE = 0.20`, every question returns three chunks, including questions the document does not answer, because even unrelated text scores above 0.20 with this model. Raising `MIN_SCORE` to around 0.6 would reject the unrelated question while keeping the relevant answers above.
 
-## Project structure
+## Folder structure
 
 ```
-semantic-search-rag-pipeline/
+assignment-1-semantic-search/
 ├── notebooks/
 │   └── semantic_search_colab.ipynb    # The pipeline (Assignment 1 submission)
 ├── data/
@@ -138,9 +137,7 @@ semantic-search-rag-pipeline/
 ├── docs/
 │   └── TECHNICAL_DOCUMENTATION.md     # Cell-by-cell description, algorithms, settings
 ├── requirements.txt                   # Dependencies (installed by the notebook in Colab)
-├── CHANGELOG.md
-├── CONTRIBUTING.md
-└── LICENSE
+└── README.md
 ```
 
 ## Limitations
@@ -154,12 +151,8 @@ semantic-search-rag-pipeline/
 
 ## Arabic summary
 
-مشروع ضمن دورة **تطوير حلول الذكاء الاصطناعي التوليدي** (الواجب الأول)، يمثل مرحلة الاسترجاع في أنظمة التوليد المعزز بالاسترجاع (RAG).
+المشروع الأول ضمن دورة **تطوير حلول الذكاء الاصطناعي التوليدي** في أكاديمية سدايا (الواجب الأول)، يمثل مرحلة الاسترجاع في أنظمة التوليد المعزز بالاسترجاع (RAG).
 
 يقوم الدفتر بتحميل ملف نصي يحتوي على ١٠ فقرات على الأقل، ثم تقسيمه إلى أجزاء ثابتة الحجم (٨٠٠ حرف) مع تداخل بنسبة ١٥٪ بين الأجزاء المتجاورة، وتحويل كل جزء إلى متجه رقمي باستخدام نموذج التضمين `bge-small-en-v1.5`. عند طرح سؤال، يُحوَّل السؤال إلى متجه بالنموذج نفسه، ويُحسب تشابه جيب التمام (Cosine Similarity) بينه وبين جميع الأجزاء، ثم تُعرض أفضل ثلاثة أجزاء مع درجات التشابه.
 
 للتشغيل: ارفع الدفتر `notebooks/semantic_search_colab.ipynb` إلى Google Colab مع ملفك النصي، ثم شغّل جميع الخلايا واكتب سؤالك.
-
-## License
-
-Released under the [MIT License](LICENSE).
