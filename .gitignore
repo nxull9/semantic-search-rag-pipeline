@@ -26,3 +26,7 @@ models/
 .DS_Store
 .vscode/
 .idea/
+
+# Vector databases created by the notebooks
+vector_db/
+assignment2_vector_db/

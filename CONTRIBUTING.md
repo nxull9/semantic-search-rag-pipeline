@@ -10,7 +10,7 @@ Thanks for your interest in improving this project! Issues, forks and pull reque
    - `fix/<short-description>` for bug fixes
    - `docs/<short-description>` for documentation
 3. Make small, focused commits (see the conventions below).
-4. Run the notebook from top to bottom in Google Colab to check it still works.
+4. Run the changed project's notebook from top to bottom in Google Colab to check it still works.
 5. Open a **pull request** against `main` that describes what changed and why.
 
 ## Commit messages
@@ -51,4 +51,4 @@ Open an issue with:
 
 ## Development setup
 
-The project is a Google Colab notebook. Upload `notebooks/semantic_search_colab.ipynb` and a text file to Colab and run all cells; the notebook installs its own dependencies (listed in `requirements.txt`).
+Each project is a Google Colab notebook in its own folder (`assignment-1-semantic-search/`, `assignment-2-semantic-faiss/`). Upload the notebook from the project's `notebooks/` folder and the files from its `data/` folder to Colab, then run all cells. Each notebook installs its own dependencies (listed in the project's `requirements.txt`).
