@@ -131,7 +131,8 @@ Answers (3 chunk(s) with similarity ≥ 0.2):
 ```
 assignment-1-semantic-search/
 ├── notebooks/
-│   └── semantic_search_colab.ipynb    # The pipeline (Assignment 1 submission)
+│   ├── semantic_search_colab.ipynb    # The pipeline (Assignment 1 submission)
+│   └── semantic_search_colab.py       # The same code as a Python file
 ├── data/
 │   └── sample_football_clubs.txt      # Sample input: 10 paragraphs
 ├── docs/
