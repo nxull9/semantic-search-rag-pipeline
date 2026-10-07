@@ -1,5 +1,7 @@
 # Technical Documentation: Final Project
 
+Part of the **Generative AI Solutions Development** program at [SDAIA Academy](https://github.com/SDAIAAcademy).
+
 This document describes how [`notebooks/rag_research_agent_colab.ipynb`](../notebooks/rag_research_agent_colab.ipynb) works: what each cell does, how the LLM is connected, how the prompt is built, how the research agent runs, and how the guardrails work. Cells 1 to 14 are the retrieval pipeline from Assignment 2; their algorithms (semantic chunking, the FAISS index, saving and reusing the database) are described in detail in the [Assignment 2 documentation](../../assignment-2-semantic-faiss/docs/TECHNICAL_DOCUMENTATION.md).
 
 ## Contents

@@ -1,6 +1,6 @@
 # Generative AI Solutions Development: Course Projects
 
-![Program](https://img.shields.io/badge/program-SDAIA%20Academy-0b6e4f)
+[![Program](https://img.shields.io/badge/program-SDAIA%20Academy-0b6e4f)](https://github.com/SDAIAAcademy)
 ![Projects completed](https://img.shields.io/badge/projects%20completed-3-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
@@ -84,7 +84,7 @@ All projects are Google Colab notebooks and need no local installation. Each `no
 
 ## About the program
 
-The Generative AI Solutions Development program at SDAIA Academy covers the design and development of generative AI applications. These projects are the course's practical assignments, published and versioned on GitHub as part of the program requirements.
+The Generative AI Solutions Development program at [SDAIA Academy](https://github.com/SDAIAAcademy) covers the design and development of generative AI applications. These projects are the course's practical assignments, published and versioned on GitHub as part of the program requirements.
 
 ## Arabic summary
 
