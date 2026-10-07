@@ -3,6 +3,20 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
+## [4.0.0] - 2026-10-07
+
+Final project of the Generative AI Solutions Development program at SDAIA Academy. Every project now includes its notebook as both `.ipynb` and `.py`.
+
+### Added
+- `final-project-rag-agent/`: the final project notebook. It builds on the Assignment 2 retrieval pipeline and adds Phase 3, where an LLM (`google/gemini-2.5-flash` through OpenRouter, temperature 0) answers from the top 3 chunks and lists the files and chunks it used. A ReAct research agent with two tools, `search_documents` and a safe `calculator`, answers questions that need several facts. Guardrails limit the agent to 6 steps and to the allowed tools, return tool errors to the model, and check that every cited chunk was retrieved.
+- A test set of 4 RAG questions and 2 agent questions, with results collected in a table.
+- README and technical documentation for the final project.
+- A `.py` file next to each notebook (`semantic_search_colab.py`, `semantic_chunking_faiss_colab.py`, `rag_research_agent_colab.py`) with the same code as the notebook.
+
+### Changed
+- The main README lists three completed projects and compares all three.
+- The Assignment 1 and 2 READMEs list the new `.py` files.
+
 ## [3.0.0] - 2026-10-06
 
 Assignment 2 of the Generative AI Solutions Development program at SDAIA Academy. The repository now holds one folder per project.

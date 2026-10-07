@@ -51,4 +51,4 @@ Open an issue with:
 
 ## Development setup
 
-Each project is a Google Colab notebook in its own folder (`assignment-1-semantic-search/`, `assignment-2-semantic-faiss/`). Upload the notebook from the project's `notebooks/` folder and the files from its `data/` folder to Colab, then run all cells. Each notebook installs its own dependencies (listed in the project's `requirements.txt`).
+Each project is a Google Colab notebook in its own folder (`assignment-1-semantic-search/`, `assignment-2-semantic-faiss/`, `final-project-rag-agent/`). If you change a notebook, update the `.py` file next to it so both hold the same code. Upload the notebook from the project's `notebooks/` folder and the files from its `data/` folder to Colab, then run all cells (the final project also needs an OpenRouter API key in Colab Secrets as `OPENROUTER_API_KEY`). Each notebook installs its own dependencies (listed in the project's `requirements.txt`).
