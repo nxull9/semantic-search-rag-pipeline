@@ -160,7 +160,8 @@ Token usage with `bge-small-en-v1.5`: 3,175 tokens for the 46 chunks, 3,355 for 
 ```
 assignment-2-semantic-faiss/
 ├── notebooks/
-│   └── semantic_chunking_faiss_colab.ipynb   # The pipeline (Assignment 2 submission)
+│   ├── semantic_chunking_faiss_colab.ipynb   # The pipeline (Assignment 2 submission)
+│   └── semantic_chunking_faiss_colab.py      # The same code as a Python file
 ├── data/
 │   ├── football_clubs.txt                    # 10 paragraphs
 │   ├── solar_system.txt                      # 12 paragraphs

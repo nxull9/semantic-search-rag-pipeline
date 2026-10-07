@@ -1,0 +1,7 @@
+# Installed automatically by the notebook in Google Colab
+sentence-transformers>=3.0
+faiss-cpu>=1.7
+numpy>=1.24
+pandas>=2.0
+matplotlib>=3.7
+requests>=2.31
