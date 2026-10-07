@@ -1,5 +1,7 @@
 # Technical Documentation: Assignment 2
 
+Part of the **Generative AI Solutions Development** program at [SDAIA Academy](https://github.com/SDAIAAcademy).
+
 This document describes how [`notebooks/semantic_chunking_faiss_colab.ipynb`](../notebooks/semantic_chunking_faiss_colab.ipynb) works: what each cell does, the algorithms behind it, how the vector database is stored and reused, and the results it produces.
 
 ## Contents

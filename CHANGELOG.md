@@ -3,6 +3,11 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
+## [4.0.1] - 2026-10-07
+
+### Changed
+- Linked to the [SDAIA Academy GitHub account](https://github.com/SDAIAAcademy) from the program badge, the "About the program" section, the Arabic summary of each project, and each technical documentation file.
+
 ## [4.0.0] - 2026-10-07
 
 Final project of the Generative AI Solutions Development program at SDAIA Academy. Every project now includes its notebook as both `.ipynb` and `.py`.

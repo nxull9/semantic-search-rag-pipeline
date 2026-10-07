@@ -1,5 +1,7 @@
 # Technical Documentation
 
+Part of the **Generative AI Solutions Development** program at [SDAIA Academy](https://github.com/SDAIAAcademy).
+
 This document describes how the notebook [`notebooks/semantic_search_colab.ipynb`](../notebooks/semantic_search_colab.ipynb) works: what each cell does, the algorithms behind it, and the settings that control it.
 
 ## Contents
