@@ -51,7 +51,7 @@ flowchart TD
     TS --> FS
 ```
 
-`rag_answer` always retrieves once and asks the LLM once. `run_agent` lets the LLM decide how many searches and calculations it needs, up to 6 rounds.
+`rag_answer` always retrieves once, for the whole question, and asks the LLM once. `run_agent` lets the LLM split the question into sub-questions and search for each one separately, then combine the facts with the calculator, up to 6 rounds (see [Query decomposition](#query-decomposition)).
 
 ## 2. Cell-by-cell description
 
@@ -159,6 +159,48 @@ The step number, tool names and arguments depend on the model's decisions; the t
 
 `run_agent` returns a dictionary with `question`, `answer`, `sources`, `steps`, `finished` and `grounded`.
 
+### Query decomposition
+
+The main idea behind the agent is to split a question that asks about more than one thing into sub-questions, and to retrieve chunks for each sub-question separately.
+
+**Why it is needed.** `rag_answer` embeds the whole question as one vector and retrieves the top 3 chunks for that vector. For "How many years after Al Ittihad was Al Hilal founded?", the vector mixes two topics, so the top 3 chunks are not guaranteed to contain both founding years. Searching for each fact on its own gives each fact its own top 3 chunks.
+
+**How the code asks for it.** There is no splitting function in the notebook. The LLM does the splitting, guided by two instructions:
+
+| Where | Instruction |
+|---|---|
+| `AGENT_SYSTEM_PROMPT` | "Use search_documents to find facts. Search separately for each fact you need." |
+| `AGENT_TOOL_SCHEMAS`, description of `search_documents` | "Search once for each separate fact you need." |
+
+Each sub-question the LLM writes arrives as the `query` argument of a `search_documents` call. `run_agent` runs it like any other tool call and prints it, so the split is visible in the step trace.
+
+**Two ways the split can happen.** The code supports both, and the model chooses:
+
+| Pattern | What the model does | What the trace shows |
+|---|---|---|
+| Up front | In one reply, asks for one `search_documents` call per sub-question. `run_agent` loops over every entry in `tool_calls` and runs them all in the same step | Several `search_documents` lines with the same step number |
+| Step by step | Asks for one sub-question, reads the result, then asks for the next | One `search_documents` line per step |
+
+In both cases, the calculator combines the facts once they have all been retrieved, and the final answer cites the chunk ids from every sub-question.
+
+**Worked example.** With the sub-questions below, the tools return these results (the tool outputs are deterministic):
+
+| Sub-question | Tool result | Fact |
+|---|---|---|
+| `search_documents("When was Al Ittihad founded?")` | chunk 3, football_clubs.txt, score 0.79 | founded in 1927 |
+| `search_documents("When was Al Hilal founded?")` | chunk 0, football_clubs.txt, score 0.80 | founded in 1957 |
+| `calculator("1957 - 1927")` | 30 | |
+
+The second test question splits the same way: Venus (chunk 19, 0.81: about 465 °C), Mercury (chunk 17, 0.84: about 430 °C), and `calculator("465 - 430")` = 35.
+
+**What is and isn't guaranteed.**
+- The split is requested by the prompt, not enforced by the code. If the model searches the whole question once, `run_agent` accepts that and continues.
+- The number of sub-questions and their wording are chosen by the model and can differ between runs.
+- A question that asks about only one thing needs no split; one search is the expected behaviour.
+- The worked example above was produced by running the agent's tools with a scripted model that requested these sub-questions. The tool results are real outputs of the notebook; whether `google/gemini-2.5-flash` chooses the same split is confirmed by running cell 19 and reading its step trace.
+
+**How to check a run.** Run cell 19 with a two-part question and count the `search_documents` lines in the output. Two or more searches, each about one fact, mean the question was split. A single search containing the whole question means it was not.
+
 ## 6. Guardrails
 
 | Guardrail | Implementation |
@@ -208,6 +250,7 @@ The retrieval scores are deterministic. The answer text comes from the LLM and i
 - The "answer only from sources" rule is an instruction to the model; no step checks each sentence of the answer against the chunks.
 - There is no minimum similarity score, so unrelated questions still send 3 chunks to the LLM.
 - The source check confirms that cited chunks were retrieved, not that they support the answer.
+- Splitting a question into sub-questions is requested in the prompt, not enforced: the model may search the whole question at once.
 - A single agent writes the answer; there is no reviewer agent.
 - The question is not filtered for prompt injection.
 - The embedding model is English-only.
