@@ -5,7 +5,7 @@
 ![Vector DB](https://img.shields.io/badge/vector%20DB-FAISS-green)
 ![LLM](https://img.shields.io/badge/LLM-OpenRouter-purple)
 
-A complete Retrieval-Augmented Generation (RAG) system over three documents from different fields. It extends [Assignment 2](../assignment-2-semantic-faiss/) with an LLM that writes the answer from the retrieved chunks, and adds a research agent that decides for itself which tools to call. The agent runs inside guardrails that limit its steps, allow only two tools, and check that every source it cites was actually retrieved.
+A complete Retrieval-Augmented Generation (RAG) system over three documents from different fields. It extends [Assignment 2](../assignment-2-semantic-faiss/) with an LLM that writes the answer from the retrieved chunks, and adds a research agent whose main idea is **query decomposition**: before retrieving any chunks, the agent splits a question that asks about more than one thing into separate sub-questions, retrieves the chunks for each one, and combines the results into one answer. The agent runs inside guardrails that limit its steps, allow only two tools, and check that every source it cites was actually retrieved.
 
 Part of the **Generative AI Solutions Development** program at [SDAIA Academy](https://github.com/SDAIAAcademy). See the [repository overview](../README.md) for the full list of projects.
 
@@ -14,7 +14,7 @@ Part of the **Generative AI Solutions Development** program at [SDAIA Academy](h
 - [How it works](#how-it-works)
 - [Getting started](#getting-started)
 - [Configuration](#configuration)
-- [The research agent](#the-research-agent)
+- [The research agent: splitting the question](#the-research-agent-splitting-the-question)
 - [Guardrails](#guardrails)
 - [Results](#results)
 - [What changed from Assignment 2](#what-changed-from-assignment-2)
@@ -48,7 +48,7 @@ flowchart TD
 | 1. Ingestion | 1-7 | Load the three documents, split them into 46 chunks by meaning, embed them, and save a FAISS index to Google Drive. Summaries of the three documents are stored in a second index. On later runs the saved database is found and this phase is skipped |
 | 2. Retrieval | 8-14 | Embed the question with the same model and return the top 3 chunks with their similarity score and file name. Includes summary-first search, a FAISS versus cosine-formula comparison, a chart of scores per file, and a question loop |
 | 3. Generation | 16-17 | Connect to OpenRouter, build a prompt from the question and the 3 numbered chunks, and ask the LLM to answer only from those sources. The answer is printed with the files and chunks it used |
-| Agent | 18-20 | Give the LLM two tools (document search and a calculator) and let it plan its own steps in a ReAct loop, inside guardrails. A final cell runs a fixed test set through both the RAG answer and the agent |
+| Agent | 18-20 | The LLM splits the question into sub-questions, searches the documents once for each, and uses a calculator when the parts need to be combined, in a ReAct loop inside guardrails. A final cell runs a fixed test set through both the RAG answer and the agent |
 
 The full cell-by-cell description is in the [technical documentation](docs/TECHNICAL_DOCUMENTATION.md).
 
@@ -78,13 +78,61 @@ A plain Python export of the notebook is in [`notebooks/rag_research_agent_colab
 | `temperature` | `0` | The same question gets the same answer, with no creative variation |
 | `MAX_AGENT_STEPS` | `6` | Maximum number of reason and act rounds for the agent |
 
-## The research agent
+## The research agent: splitting the question
 
-The agent is the LLM with two tools. It reads the question, decides which tool to call, reads the result, and repeats until it can answer. This is the ReAct pattern (reason, act, observe).
+### The main idea
+
+A question often asks about more than one thing. "How many years after Al Ittihad was Al Hilal founded?" needs two facts: when Al Ittihad was founded, and when Al Hilal was founded.
+
+Phase 3 (`rag_answer`) turns the whole question into one vector and retrieves the top 3 chunks for it. That single vector mixes both parts of the question, so the top 3 chunks may cover one part and miss the other.
+
+The agent solves this by **splitting the question before retrieving anything**:
+
+1. **Split.** The LLM reads the question and breaks it into one sub-question per fact it needs.
+2. **Retrieve per sub-question.** Each sub-question becomes its own `search_documents` call, so each fact gets its own top 3 chunks.
+3. **Combine.** When the facts need to be put together (a difference, a sum), the `calculator` tool does the arithmetic.
+4. **Answer.** The LLM writes one answer from all the retrieved chunks and cites the chunk ids it used.
+
+A question that asks about only one thing is not split: the agent searches once, just like Phase 3.
+
+```mermaid
+flowchart TD
+    Q["Question<br/>How many years after Al Ittihad<br/>was Al Hilal founded?"] --> SPLIT["LLM splits the question<br/>one sub-question per fact"]
+    SPLIT --> Q1["Sub-question 1<br/>When was Al Ittihad founded?"]
+    SPLIT --> Q2["Sub-question 2<br/>When was Al Hilal founded?"]
+    Q1 --> S1["search_documents<br/>chunk 3: founded in 1927"]
+    Q2 --> S2["search_documents<br/>chunk 0: founded in 1957"]
+    S1 --> CALC["calculator<br/>1957 - 1927 = 30"]
+    S2 --> CALC
+    CALC --> ANS["Final answer: 30 years<br/>sources: chunks 0 and 3"]
+```
+
+### How the code makes the agent split
+
+There is no separate splitting function. The LLM does the splitting, and the notebook tells it to in two places:
+
+| Where | Instruction |
+|---|---|
+| `AGENT_SYSTEM_PROMPT` | "Use search_documents to find facts. Search separately for each fact you need." |
+| `search_documents` tool description in `AGENT_TOOL_SCHEMAS` | "Search once for each separate fact you need." |
+
+Each sub-question the LLM writes is passed as the `query` argument of a `search_documents` call, so the printed steps show exactly how the question was split:
+
+```
+Step 1 | search_documents(query='When was Al Ittihad founded?') -> chunk 3 (football_clubs.txt, 0.79), ...
+Step 2 | search_documents(query='When was Al Hilal founded?') -> chunk 0 (football_clubs.txt, 0.80), ...
+Step 3 | calculator(expression='1957 - 1927') -> 30
+```
+
+The wording of the sub-questions is chosen by the LLM, so it can differ between runs.
+
+### The ReAct loop
+
+The splitting happens inside a ReAct loop (reason, act, observe). In each round the LLM decides the next sub-question to search or the next calculation to run, the notebook runs it, and the result is added to the conversation. The loop ends when the LLM gives its final answer, or after 6 rounds.
 
 ```mermaid
 flowchart LR
-    Q["Question"] --> R["REASON<br/>LLM picks a tool<br/>or answers"]
+    Q["Question"] --> R["REASON<br/>LLM picks the next<br/>sub-question or answers"]
     R -- "tool call" --> G{"Allowed tool?"}
     G -- "yes" --> A["ACT<br/>notebook runs the tool"]
     G -- "no" --> X["error returned<br/>to the model"]
@@ -97,10 +145,12 @@ flowchart LR
     F --> C["Source check:<br/>cited chunks were retrieved?"]
 ```
 
+### Tools
+
 | Tool | What it does |
 |---|---|
-| `search_documents(query)` | Searches the FAISS database and returns the top 3 chunks with chunk id, file, score and text. Read-only: the agent cannot change the database |
-| `calculator(expression)` | Evaluates arithmetic such as `1957 - 1927`. Only numbers and `+ - * / ** ( )` are accepted, so no code can run |
+| `search_documents(query)` | Searches the FAISS database for one sub-question and returns the top 3 chunks with chunk id, file, score and text. Read-only: the agent cannot change the database |
+| `calculator(expression)` | Combines the facts with arithmetic such as `1957 - 1927`. Only numbers and `+ - * / ** ( )` are accepted, so no code can run |
 
 The LLM never runs anything itself. It only asks for a tool by name; the notebook checks the name and runs the matching Python function.
 
@@ -144,20 +194,20 @@ The answers written by the LLM depend on the model and are not reproduced here. 
 
 The FAISS scores are identical to the cosine formula `(A · B) / (‖A‖ × ‖B‖)` computed by hand.
 
-**Agent tool steps**
+**Agent: questions split into sub-questions**
 
-The agent test questions each need two facts from the documents and one calculation. The tool results the agent receives are:
+Each agent test question asks about two things, so it is split into two sub-questions, each retrieved separately, and the two facts are combined with the calculator. The tool results the agent receives are:
 
 | Question | Tool call | Result |
 |---|---|---|
-| How many years after Al Ittihad was Al Hilal founded? | `search_documents("When was Al Ittihad founded?")` | chunk 3, football_clubs.txt (0.79): founded in 1927 |
-| | `search_documents("When was Al Hilal founded?")` | chunk 0, football_clubs.txt (0.80): founded in 1957 |
+| How many years after Al Ittihad was Al Hilal founded? | Sub-question 1: `search_documents("When was Al Ittihad founded?")` | chunk 3, football_clubs.txt (0.79): founded in 1927 |
+| | Sub-question 2: `search_documents("When was Al Hilal founded?")` | chunk 0, football_clubs.txt (0.80): founded in 1957 |
 | | `calculator("1957 - 1927")` | 30 |
-| How much hotter is Venus than the daytime temperature on Mercury? | `search_documents` for Venus | chunk 19, solar_system.txt (0.81): about 465 °C |
-| | `search_documents` for Mercury | chunk 17, solar_system.txt (0.84): about 430 °C |
+| How much hotter is Venus than the daytime temperature on Mercury? | Sub-question 1: `search_documents` for Venus | chunk 19, solar_system.txt (0.81): about 465 °C |
+| | Sub-question 2: `search_documents` for Mercury | chunk 17, solar_system.txt (0.84): about 430 °C |
 | | `calculator("465 - 430")` | 35 |
 
-The exact search wording is chosen by the LLM, so it can differ between runs.
+The exact wording of the sub-questions is chosen by the LLM, so it can differ between runs.
 
 **Guardrail behaviour**
 
@@ -176,7 +226,7 @@ Each guardrail was tested by replacing `call_llm` with a scripted model that mis
 |---|---|---|
 | Output | Top 3 chunks with scores and files | A written answer from the LLM, with the files and chunks it used |
 | LLM | None | `google/gemini-2.5-flash` through OpenRouter, temperature 0 |
-| Questions needing several facts | One search, one set of chunks | The agent searches once per fact and calculates with a tool |
+| Questions asking about several things | One search for the whole question, one set of chunks | The agent splits the question into sub-questions, retrieves chunks for each, and combines them with a calculator |
 | Unrelated questions | Still returns the 3 closest chunks | The LLM says the documents do not contain the answer |
 | Safety | Not needed for retrieval only | Step limit, allowed tools, safe calculator, source check |
 | Check cells | 27 automated checks | Not included; the retrieval pipeline is the same code as Assignment 2 |
@@ -213,4 +263,4 @@ final-project-rag-agent/
 
 المشروع النهائي ضمن دورة **تطوير حلول الذكاء الاصطناعي التوليدي** في [أكاديمية سدايا](https://github.com/SDAIAAcademy).
 
-يبني المشروع نظام RAG كاملاً فوق المشروع الثاني: تُقسَّم ثلاثة مستندات حسب المعنى وتُحفظ متجهاتها في قاعدة بيانات FAISS على Google Drive، ثم تُسترجع أفضل ثلاثة أجزاء لكل سؤال وتُرسل مع السؤال إلى نموذج لغوي (`gemini-2.5-flash` عبر OpenRouter) ليكتب الإجابة من هذه المصادر فقط مع ذكر المراجع. ويضيف المشروع وكيلاً بحثياً بنمط ReAct يملك أداتين: البحث في المستندات والآلة الحاسبة، فيبحث عن كل معلومة على حدة ثم يحسب الناتج. ويعمل الوكيل ضمن ضوابط أمان: حد أقصى ست خطوات، وأدوات مسموحة فقط، وآلة حاسبة آمنة، والتحقق من أن كل مصدر يذكره قد استُرجع فعلاً.
+يبني المشروع نظام RAG كاملاً فوق المشروع الثاني: تُقسَّم ثلاثة مستندات حسب المعنى وتُحفظ متجهاتها في قاعدة بيانات FAISS على Google Drive، ثم تُسترجع أفضل ثلاثة أجزاء لكل سؤال وتُرسل مع السؤال إلى نموذج لغوي (`gemini-2.5-flash` عبر OpenRouter) ليكتب الإجابة من هذه المصادر فقط مع ذكر المراجع. ويضيف المشروع وكيلاً بحثياً بنمط ReAct فكرته الأساسية **تقسيم السؤال**: قبل استرجاع أي جزء من المستندات، يقسّم الوكيل السؤال الذي يسأل عن أكثر من شيء إلى سؤالين فرعيين أو أكثر، ويسترجع الأجزاء المناسبة لكل سؤال فرعي على حدة، ثم يجمع النتائج بالآلة الحاسبة عند الحاجة ويكتب إجابة واحدة. مثلاً: "كم سنة بعد تأسيس الاتحاد تأسس الهلال؟" يُقسَّم إلى "متى تأسس الاتحاد؟" (1927) و"متى تأسس الهلال؟" (1957)، ثم 1957 - 1927 = 30. ويعمل الوكيل ضمن ضوابط أمان: حد أقصى ست خطوات، وأدوات مسموحة فقط، وآلة حاسبة آمنة، والتحقق من أن كل مصدر يذكره قد استُرجع فعلاً.
